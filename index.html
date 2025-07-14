@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify Certificate – Abzard Media</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #FF924C;
+      margin: 0;
+      padding: 20px;
+      color: #000;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      margin-right: 15px;
+    }
+
+    .title {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #000;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .button-row button {
+      font-size: 16px;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .verify-btn {
+      flex: 4;
+      background-color: #2B47A2;
+      color: white;
+    }
+
+    .verify-btn:hover {
+      background-color: #1f327a;
+    }
+
+    .scan-btn {
+      flex: 1;
+      background-color: #4B5C90;
+      color: white;
+    }
+
+    .scan-btn:hover {
+      background-color: #3a4770;
+    }
+
+    .result {
+      margin-top: 20px;
+      color: #333;
+    }
+
+    .verified {
+      color: green;
+    }
+
+    .not-found {
+      color: red;
+    }
+
+    #reader {
+      margin-top: 20px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="logo.png" alt="Abzard Media Logo" class="logo"/>
+      <div class="title">Internship Certificate Verification</div>
+    </div>
+
+    <p>Enter your Certificate ID (e.g. ABM202507001):</p>
+    <input type="text" id="certId" placeholder="Certificate ID"/>
+
+    <div class="button-row">
+      <button onclick="verifyCert()" class="verify-btn">Verify</button>
+      <button onclick="startScan()" class="scan-btn">Scan QR</button>
+    </div>
+
+    <div id="reader"></div>
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    function extractCertId(raw) {
+      // Try to extract ?cert= from URL
+      try {
+        if (raw.includes("cert=")) {
+          const url = new URL(raw);
+          return url.searchParams.get("cert").trim().toUpperCase();
+        }
+      } catch (e) {
+        // Not a valid URL
+      }
+      return raw.trim().toUpperCase(); // plain cert ID fallback
+    }
+
+    async function verifyCert() {
+      let input = document.getElementById('certId').value;
+      let certId = extractCertId(input);
+
+      if (!certId) return alert("Please enter a certificate ID.");
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = "Checking...";
+
+      try {
+        const res = await fetch("https://docs.google.com/spreadsheets/d/e/2PACX-1vRV3zAeYYcP7xnsvrSNtWCzLCJilaP5YclNUOyNVtilqo1xcOXlJrpGZvKvWVgqaiUiwlb6eog_uYxm/pub?gid=0&single=true&output=csv");
+        const text = await res.text();
+        const rows = text.split('\n').map(row => row.split(','));
+        const headers = rows.shift();
+        const cert = rows.find(row => row[0].trim() === certId);
+        if (cert) {
+          resultDiv.innerHTML = `
+            <div class='verified'>
+              <h3>✅ Certificate Verified</h3>
+              <p><strong>Name:</strong> ${cert[1]}</p>
+              <p><strong>Role:</strong> ${cert[2]}</p>
+              <p><strong>Date:</strong> ${cert[3]}</p>
+              <p><strong>Status:</strong> ${cert[4]}</p>
+            </div>`;
+        } else {
+          resultDiv.innerHTML = `<h3 class="not-found">❌ Certificate Not Found</h3>`;
+        }
+      } catch (e) {
+        resultDiv.innerHTML = "<p style='color:red;'>Error fetching certificate data. Try again later.</p>";
+      }
+    }
+
+    function startScan() {
+      const qrBox = document.getElementById('reader');
+      qrBox.innerHTML = ""; // Clear previous scanner
+      const html5QrCode = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => {
+          let certId = extractCertId(decodedText);
+          document.getElementById("certId").value = certId;
+          html5QrCode.stop().then(() => {
+            qrBox.innerHTML = "";
+            verifyCert(); // auto verify
+          });
+        },
+        (errorMessage) => {
+          // QR code scan failed
+        }
+      ).catch((err) => {
+        qrBox.innerHTML = `<p style='color:red;'>Camera Error: ${err}</p>`;
+      });
+    }
+  </script>
+</body>
+</html>
